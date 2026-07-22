@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spesn"
+version = "0.1.0"
+description = "Saturation Point Extraction for SuperNovae"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "scikit-learn",
+    "iminuit",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
