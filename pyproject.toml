@@ -20,3 +20,7 @@ dependencies = [
 dev = [
     "pytest",
 ]
+
+[tool.setuptools.packages.find]
+include = ["spesn*"]
+exclude = ["build*", "tests*", "notebooks*"]
