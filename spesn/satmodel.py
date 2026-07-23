@@ -41,6 +41,16 @@ import numpy as np
 # 2.5 / ln(10): converts a natural-log flux ratio to a magnitude.
 _POGSON = 2.5 / np.log(10.0)  # = 1.0857362...
 
+_available_models = [
+    "broken_line",
+    "gaussian_clip",
+    "moffat_clip",
+    "quadratic_nonlinearity",
+    "bleed_residual",
+    "softplus",
+    "logistic_flux",
+    "quadratic_plus_gaussian_clip",
+]
 
 def load_model(model_name):
     """
