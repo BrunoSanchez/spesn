@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "numpy",
+    "pandas",
     "scipy",
     "matplotlib",
     "scikit-learn",
@@ -24,3 +25,9 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["spesn*"]
 exclude = ["build*", "tests*", "notebooks*"]
+
+docs = [
+    "sphinx>=7",
+    "myst-parser>=2",
+    "sphinx-rtd-theme>=2",
+]
