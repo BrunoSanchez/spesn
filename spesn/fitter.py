@@ -1,43 +1,65 @@
 import iminuit
-from .satmodel import load_model
 import numpy as np
 
+from .satmodel import load_model
 
-def compute_gaussian_likelihood(model,params, magnitude, magnitude_error,):
-    likelihood = np.nansum((model(*params) - magnitude) ** 2 / (2 * magnitude_error ** 2)) - np.nansum(np.log(magnitude_error * np.sqrt(2 * np.pi)))
+
+def compute_gaussian_likelihood(
+    model,
+    params,
+    magnitude,
+    magnitude_error,
+):
+    likelihood = np.nansum(
+        (model(*params) - magnitude) ** 2 / (2 * magnitude_error**2)
+    ) - np.nansum(np.log(magnitude_error * np.sqrt(2 * np.pi)))
     return likelihood
 
 
-
 class LikelihoodGaussian(object):
-    def __init__(self, model_name, magnitude, magnitude_error,negative_log_likelihood,):
+    def __init__(
+        self,
+        model_name,
+        magnitude,
+        magnitude_error,
+        negative_log_likelihood,
+    ):
         self.model = load_model(model_name)
         self.magnitude = magnitude
         self.magnitude_error = magnitude_error
         self.negative_log_likelihood = negative_log_likelihood
 
-
     def __call__(self, *params):
-        log_likelihood = compute_gaussian_likelihood(self.model, params, self.magnitude, self.magnitude_error)
+        log_likelihood = compute_gaussian_likelihood(
+            self.model, params, self.magnitude, self.magnitude_error
+        )
         if self.negative_log_likelihood:
             return -log_likelihood
-        else:  
+        else:
             return log_likelihood
 
 
-
 class Fitter(object):
-    def __init__(self, likelihood,
-                 minuit_parameters=(),):
+    def __init__(
+        self,
+        likelihood,
+        minuit_parameters=(),
+    ):
         self.likelihood = likelihood
         self.minuit_parameters = minuit_parameters
 
     @classmethod
-    def init_from_data(cls, model_name, magnitude, magnitude_error, negative_log_likelihood=True):
-        likelihood = LikelihoodGaussian(model_name, magnitude, magnitude_error, negative_log_likelihood)
+    def init_from_data(
+        cls, model_name, magnitude, magnitude_error, negative_log_likelihood=True
+    ):
+        likelihood = LikelihoodGaussian(
+            model_name, magnitude, magnitude_error, negative_log_likelihood
+        )
         return cls(likelihood)
 
-    def setup_minuit(self, ):
+    def setup_minuit(
+        self,
+    ):
 
         self.minuit.errordef = iminuit.Minuit.LIKELIHOOD
         for parameters in self.minuit_parameters:
@@ -51,7 +73,7 @@ class Fitter(object):
             limit_up = d["limit_up"] if "limit_up" in d else None
             self.minuit.limits[parameters] = (limit_low, limit_up)
 
-    def init_minuit_fit(self,init_params):
+    def init_minuit_fit(self, init_params):
 
         self.minuit = iminuit.Minuit(
             self.likelihood,
@@ -75,7 +97,7 @@ class Fitter(object):
             for i in range(n_iter):
                 if n_iter != 1:
                     print(f"Iteration {i+1}/{n_iter}\n")
-                print(self.minuit.migrad()  )
+                print(self.minuit.migrad())
         if hesse:
             print(self.minuit.hesse())
         if minos:
@@ -87,10 +109,21 @@ class Fitter(object):
         return self.minuit.values.to_dict()
 
 
-
-
-def launch_fit(model_name, magnitude, magnitude_error, init_params, minuit_parameters=None, negative_log_likelihood=True, migrad=True, hesse=False, minos=False, n_iter=1):
-    fitter = Fitter.init_from_data(model_name, magnitude, magnitude_error, negative_log_likelihood)
+def launch_fit(
+    model_name,
+    magnitude,
+    magnitude_error,
+    init_params,
+    minuit_parameters=None,
+    negative_log_likelihood=True,
+    migrad=True,
+    hesse=False,
+    minos=False,
+    n_iter=1,
+):
+    fitter = Fitter.init_from_data(
+        model_name, magnitude, magnitude_error, negative_log_likelihood
+    )
     if minuit_parameters is not None:
         fitter.minuit_parameters = minuit_parameters
     fitter.init_minuit_fit(init_params)
@@ -98,16 +131,38 @@ def launch_fit(model_name, magnitude, magnitude_error, init_params, minuit_param
     return result
 
 
-def launch_several_fits_mp(model_name, magnitude_list, magnitude_error_list, init_params_list, minuit_parameters=None, negative_log_likelihood=True, migrad=True, hesse=False, minos=False, n_iter=1):
+def launch_several_fits_mp(
+    model_name,
+    magnitude_list,
+    magnitude_error_list,
+    init_params_list,
+    minuit_parameters=None,
+    negative_log_likelihood=True,
+    migrad=True,
+    hesse=False,
+    minos=False,
+    n_iter=1,
+):
     from multiprocessing import Pool
 
     def fit_single(args):
         magnitude, magnitude_error, init_params = args
-        return launch_fit(model_name, magnitude, magnitude_error, init_params, minuit_parameters=minuit_parameters,
-                          negative_log_likelihood=negative_log_likelihood, migrad=migrad, hesse=hesse,
-                          minos=minos, n_iter=n_iter)
+        return launch_fit(
+            model_name,
+            magnitude,
+            magnitude_error,
+            init_params,
+            minuit_parameters=minuit_parameters,
+            negative_log_likelihood=negative_log_likelihood,
+            migrad=migrad,
+            hesse=hesse,
+            minos=minos,
+            n_iter=n_iter,
+        )
 
     with Pool() as pool:
-        results = pool.map(fit_single, zip(magnitude_list, magnitude_error_list, init_params_list))
+        results = pool.map(
+            fit_single, zip(magnitude_list, magnitude_error_list, init_params_list)
+        )
 
     return results

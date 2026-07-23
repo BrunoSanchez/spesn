@@ -1,8 +1,4 @@
-
 import numpy as np
-
-
-
 
 
 def load_model(model_name):
@@ -23,7 +19,7 @@ def load_model(model_name):
         raise ValueError(f"Model '{model_name}' is not recognized.")
 
 
-def broken_line_model(x, x0, y0,slope):
+def broken_line_model(x, x0, y0, slope):
     """
     Broken line model function.
 
@@ -42,6 +38,3 @@ def broken_line_model(x, x0, y0,slope):
         Dependent variable values corresponding to the input x.
     """
     return np.where(x < x0, y0 + slope * (x - x0), y0)
-
-
-
