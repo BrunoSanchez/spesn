@@ -1,6 +1,7 @@
 import iminuit
 import numpy as np
 import multiprocessing as mp
+from iminuit.util import describe
 
 from .satmodel import load_model
 
@@ -12,10 +13,16 @@ def compute_gaussian_likelihood(
     backoff,
     backoff_error,
 ):
-    likelihood = np.nansum(
-        (model(magnitude,*params) - backoff) ** 2 / (2 * backoff_error**2)
+    """Gaussian log-likelihood of the back-off data given the model.
+
+    Returns log L = -sum[ (model - backoff)^2 / (2 sigma^2) ]
+                    - sum[ log(sigma sqrt(2 pi)) ].
+    """
+    residual = model(magnitude, *params) - backoff
+    log_likelihood = -np.nansum(
+        residual**2 / (2 * backoff_error**2)
     ) - np.nansum(np.log(backoff_error * np.sqrt(2 * np.pi)))
-    return likelihood
+    return log_likelihood
 
 
 class LikelihoodGaussian(object):
@@ -32,11 +39,17 @@ class LikelihoodGaussian(object):
         self.backoff = backoff
         self.backoff_error = backoff_error
         self.negative_log_likelihood = negative_log_likelihood
+        # Model parameter names, excluding the first arg (the magnitude).
+        # iminuit cannot introspect the ``*params`` signature of ``__call__``,
+        # so these are passed to Minuit explicitly via ``name=``.
+        self.parameter_names = list(describe(self.model))[1:]
 
     def __call__(self, *params):
         log_likelihood = compute_gaussian_likelihood(
             self.model, params, self.magnitude, self.backoff, self.backoff_error
         )
+        # Minuit minimises with errordef=LIKELIHOOD, so it needs the
+        # NEGATIVE log-likelihood.
         if self.negative_log_likelihood:
             return -log_likelihood
         else:
@@ -78,10 +91,23 @@ class Fitter(object):
             self.minuit.limits[parameters] = (limit_low, limit_up)
 
     def init_minuit_fit(self, init_params):
-
+        names = self.likelihood.parameter_names
+        # Accept a dict {name: value} or an ordered sequence of start values.
+        if isinstance(init_params, dict):
+            init_values = [init_params[name] for name in names]
+        else:
+            init_values = list(init_params)
+        if len(init_values) != len(names):
+            raise ValueError(
+                f"init_params has {len(init_values)} values but model "
+                f"expects {len(names)} parameters: {names}"
+            )
+        # Pass names explicitly: Minuit cannot infer them from the
+        # variadic ``*params`` signature of the likelihood.
         self.minuit = iminuit.Minuit(
             self.likelihood,
-            init_params,
+            *init_values,
+            name=names,
         )
         self.setup_minuit()
 
