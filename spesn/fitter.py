@@ -1,5 +1,6 @@
 import iminuit
 import numpy as np
+import multiprocessing as mp
 
 from .satmodel import load_model
 
@@ -7,11 +8,12 @@ from .satmodel import load_model
 def compute_gaussian_likelihood(
     model,
     params,
+    magnitude,
     backoff,
     backoff_error,
 ):
     likelihood = np.nansum(
-        (model(*params) - backoff) ** 2 / (2 * backoff_error**2)
+        (model(magnitude,*params) - backoff) ** 2 / (2 * backoff_error**2)
     ) - np.nansum(np.log(backoff_error * np.sqrt(2 * np.pi)))
     return likelihood
 
@@ -20,18 +22,20 @@ class LikelihoodGaussian(object):
     def __init__(
         self,
         model_name,
+        magnitude,
         backoff,
         backoff_error,
         negative_log_likelihood,
     ):
         self.model = load_model(model_name)
+        self.magnitude = magnitude
         self.backoff = backoff
         self.backoff_error = backoff_error
         self.negative_log_likelihood = negative_log_likelihood
 
     def __call__(self, *params):
         log_likelihood = compute_gaussian_likelihood(
-            self.model, params, self.backoff, self.backoff_error
+            self.model, params, self.magnitude, self.backoff, self.backoff_error
         )
         if self.negative_log_likelihood:
             return -log_likelihood
@@ -50,10 +54,10 @@ class Fitter(object):
 
     @classmethod
     def init_from_data(
-        cls, model_name, backoff, backoff_error, negative_log_likelihood=True
+        cls, model_name, magnitude, backoff, backoff_error, negative_log_likelihood=True,
     ):
         likelihood = LikelihoodGaussian(
-            model_name, backoff, backoff_error, negative_log_likelihood
+            model_name, magnitude, backoff, backoff_error, negative_log_likelihood
         )
         return cls(likelihood)
 
@@ -111,6 +115,7 @@ class Fitter(object):
 
 def launch_fit(
     model_name,
+    magnitude,
     backoff,
     backoff_error,
     init_params,
@@ -122,7 +127,7 @@ def launch_fit(
     n_iter=1,
 ):
     fitter = Fitter.init_from_data(
-        model_name, backoff, backoff_error, negative_log_likelihood
+        model_name, magnitude, backoff, backoff_error, negative_log_likelihood
     )
     if minuit_parameters is not None:
         fitter.minuit_parameters = minuit_parameters
@@ -131,24 +136,28 @@ def launch_fit(
     return result
 
 
-def launch_several_fits_mp(
+
+def launch_several_fits_multiprocessing(
     model_name,
+    magnitude_list,
     backoff_list,
     backoff_error_list,
     init_params_list,
+    number_threads=1,
     minuit_parameters=None,
     negative_log_likelihood=True,
     migrad=True,
     hesse=False,
     minos=False,
     n_iter=1,
+    
 ):
-    from multiprocessing import Pool
 
     def fit_single(args):
-        backoff, backoff_error, init_params = args
+        magnitude, backoff, backoff_error, init_params = args
         return launch_fit(
             model_name,
+            magnitude,
             backoff,
             backoff_error,
             init_params,
@@ -160,9 +169,12 @@ def launch_several_fits_mp(
             n_iter=n_iter,
         )
 
-    with Pool() as pool:
-        results = pool.map(
-            fit_single, zip(backoff_list, backoff_error_list, init_params_list)
-        )
+    if number_threads == 1:
+        results = [fit_single(args) for args in zip(magnitude_list, backoff_list, backoff_error_list, init_params_list)]
+    else:
+        with mp.Pool(number_threads) as pool:
+            results = pool.map(
+                fit_single, zip(magnitude_list, backoff_list, backoff_error_list, init_params_list)
+            )
 
     return results
