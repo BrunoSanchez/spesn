@@ -46,7 +46,7 @@ class LikelihoodGaussian(object):
 
     def __call__(self, *params):
         log_likelihood = compute_gaussian_likelihood(
-            self.model, params, self.magnitude, self.backoff, self.backoff_error
+            self.model, *params, self.magnitude, self.backoff, self.backoff_error
         )
         # Minuit minimises with errordef=LIKELIHOOD, so it needs the
         # NEGATIVE log-likelihood.
