@@ -1,6 +1,8 @@
+import multiprocessing as mp
+from functools import partial
+
 import iminuit
 import numpy as np
-import multiprocessing as mp
 from iminuit.util import describe
 
 from .satmodel import load_model
@@ -19,9 +21,9 @@ def compute_gaussian_likelihood(
                     - sum[ log(sigma sqrt(2 pi)) ].
     """
     residual = model(magnitude, *params) - backoff
-    log_likelihood = -np.nansum(
-        residual**2 / (2 * backoff_error**2)
-    ) - np.nansum(np.log(backoff_error * np.sqrt(2 * np.pi)))
+    log_likelihood = -np.nansum(residual**2 / (2 * backoff_error**2)) - np.nansum(
+        np.log(backoff_error * np.sqrt(2 * np.pi))
+    )
     return log_likelihood
 
 
@@ -67,7 +69,12 @@ class Fitter(object):
 
     @classmethod
     def init_from_data(
-        cls, model_name, magnitude, backoff, backoff_error, negative_log_likelihood=True,
+        cls,
+        model_name,
+        magnitude,
+        backoff,
+        backoff_error,
+        negative_log_likelihood=True,
     ):
         likelihood = LikelihoodGaussian(
             model_name, magnitude, backoff, backoff_error, negative_log_likelihood
@@ -162,6 +169,29 @@ def launch_fit(
     return result
 
 
+def _fit_single(args, **kwargs):
+    """Module-level worker for :func:`launch_several_fits_multiprocessing`.
+
+    Defined at module scope (not nested) so it is picklable and can be
+    dispatched to ``multiprocessing.Pool`` workers. ``args`` is the per-fit
+    tuple ``(magnitude, backoff, backoff_error, init_params)``; ``kwargs``
+    carries the settings shared across all fits.
+    """
+    magnitude, backoff, backoff_error, init_params = args
+    return launch_fit(
+        kwargs["model_name"],
+        magnitude,
+        backoff,
+        backoff_error,
+        init_params,
+        minuit_parameters=kwargs["minuit_parameters"],
+        negative_log_likelihood=kwargs["negative_log_likelihood"],
+        migrad=kwargs["migrad"],
+        hesse=kwargs["hesse"],
+        minos=kwargs["minos"],
+        n_iter=kwargs["n_iter"],
+    )
+
 
 def launch_several_fits_multiprocessing(
     model_name,
@@ -176,31 +206,28 @@ def launch_several_fits_multiprocessing(
     hesse=False,
     minos=False,
     n_iter=1,
-    
 ):
-
-    def fit_single(args):
-        magnitude, backoff, backoff_error, init_params = args
-        return launch_fit(
-            model_name,
-            magnitude,
-            backoff,
-            backoff_error,
-            init_params,
-            minuit_parameters=minuit_parameters,
-            negative_log_likelihood=negative_log_likelihood,
-            migrad=migrad,
-            hesse=hesse,
-            minos=minos,
-            n_iter=n_iter,
-        )
+    # Bind the shared settings; the resulting partial is picklable because
+    # ``_fit_single`` is a top-level function and all bound values are
+    # picklable (str/dict/bool/int).
+    worker = partial(
+        _fit_single,
+        model_name=model_name,
+        minuit_parameters=minuit_parameters,
+        negative_log_likelihood=negative_log_likelihood,
+        migrad=migrad,
+        hesse=hesse,
+        minos=minos,
+        n_iter=n_iter,
+    )
+    args_iter = zip(
+        magnitude_list, backoff_list, backoff_error_list, init_params_list
+    )
 
     if number_threads == 1:
-        results = [fit_single(args) for args in zip(magnitude_list, backoff_list, backoff_error_list, init_params_list)]
+        results = [worker(args) for args in args_iter]
     else:
         with mp.Pool(number_threads) as pool:
-            results = pool.map(
-                fit_single, zip(magnitude_list, backoff_list, backoff_error_list, init_params_list)
-            )
+            results = pool.map(worker, args_iter)
 
     return results
