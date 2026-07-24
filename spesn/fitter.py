@@ -118,7 +118,14 @@ class Fitter(object):
         )
         self.setup_minuit()
 
-    def run(self, migrad=True, hesse=False, minos=False, n_iter=1):
+    def run(
+        self,
+        migrad=True,
+        hesse=False,
+        minos=False,
+        n_iter=1,
+        verbose=False,
+    ):
         """Run Minuit optimization and return fitted parameter values.
 
         Args:
@@ -126,6 +133,7 @@ class Fitter(object):
             hesse (bool): Compute HESSE errors.
             minos (bool): Compute MINOS intervals (may be slow).
             n_iter (int): Number of MIGRAD iterations to perform.
+            verbose (bool): Whether to print progress information.
 
         Returns:
             dict: Fitted parameter values.
@@ -134,12 +142,24 @@ class Fitter(object):
             for i in range(n_iter):
                 if n_iter != 1:
                     print(f"Iteration {i+1}/{n_iter}\n")
-                print(self.minuit.migrad())
+                if verbose:
+                    print(f"Starting MIGRAD iteration {i+1}/{n_iter}...")
+                    print(self.minuit.migrad())
+                else:
+                    self.minuit.migrad()
         if hesse:
-            print(self.minuit.hesse())
+            if verbose:
+                print("Computing HESSE errors...")
+                print(self.minuit.hesse())
+            else:
+                self.minuit.hesse()
         if minos:
             try:
-                print(self.minuit.minos())
+                if verbose:
+                    print("Computing MINOS intervals...")
+                    print(self.minuit.minos())
+                else:
+                    self.minuit.minos()
             except RuntimeError:
                 pass
 
@@ -158,6 +178,7 @@ def launch_fit(
     hesse=False,
     minos=False,
     n_iter=1,
+    verbose=False,
 ):
     fitter = Fitter.init_from_data(
         model_name, magnitude, backoff, backoff_error, negative_log_likelihood
@@ -165,7 +186,13 @@ def launch_fit(
     if minuit_parameters is not None:
         fitter.minuit_parameters = minuit_parameters
     fitter.init_minuit_fit(init_params)
-    result = fitter.run(migrad=migrad, hesse=hesse, minos=minos, n_iter=n_iter)
+    result = fitter.run(
+        migrad=migrad,
+        hesse=hesse,
+        minos=minos,
+        n_iter=n_iter,
+        verbose=verbose,
+    )
     return result
 
 
@@ -190,6 +217,7 @@ def _fit_single(args, **kwargs):
         hesse=kwargs["hesse"],
         minos=kwargs["minos"],
         n_iter=kwargs["n_iter"],
+        verbose=kwargs["verbose"],
     )
 
 
@@ -206,6 +234,7 @@ def launch_several_fits_multiprocessing(
     hesse=False,
     minos=False,
     n_iter=1,
+    verbose=False,
 ):
     # Bind the shared settings; the resulting partial is picklable because
     # ``_fit_single`` is a top-level function and all bound values are
@@ -219,10 +248,9 @@ def launch_several_fits_multiprocessing(
         hesse=hesse,
         minos=minos,
         n_iter=n_iter,
+        verbose=verbose,
     )
-    args_iter = zip(
-        magnitude_list, backoff_list, backoff_error_list, init_params_list
-    )
+    args_iter = zip(magnitude_list, backoff_list, backoff_error_list, init_params_list)
 
     if number_threads == 1:
         results = [worker(args) for args in args_iter]
