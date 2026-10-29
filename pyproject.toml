@@ -26,8 +26,8 @@ dev = [
 include = ["spesn*"]
 exclude = ["build*", "tests*", "notebooks*"]
 
-docs = [
-    "sphinx>=7",
-    "myst-parser>=2",
-    "sphinx-rtd-theme>=2",
-]
+# docs = [
+#     "sphinx>=7",
+#     "myst-parser>=2",
+#     "sphinx-rtd-theme>=2",
+# ]
